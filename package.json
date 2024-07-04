@@ -8,7 +8,7 @@
     },
     "author": "Artyom Kombarov",
     "license": "MIT",
-    "dependencies": {
+    "devDependencies": {
         "typescript": "^5.5.3"
     }
 }
