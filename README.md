@@ -1,4 +1,4 @@
-# Mandelbro[TS](https://en.wikipedia.org/wiki/Haskell) set
+# Mandelbro[TS](https://en.wikipedia.org/wiki/TypeScript) set
 
 ```console
 $ docker build . --tag node_boiler
