@@ -1,52 +1,4 @@
 (() => {
-    /**
-     * Every complex number can be expressed in the form `a+b*i`
-     * where a and b are real numbers.
-     */
-    class ComplexNumber {
-        a: number;
-        b: number;
-
-        constructor(a: number, b: number) {
-            this.a = a;
-            this.b = b;
-        }
-
-        add(n: ComplexNumber): ComplexNumber {
-            this.a = this.a + n.a;
-            this.b = this.b + n.b;
-
-            return this;
-        }
-
-        mul(cnum: ComplexNumber): ComplexNumber {
-            const a = this.a;
-            const b = this.b;
-
-            this.a = a * cnum.a - b * cnum.b;
-            this.b = a * cnum.b + b * cnum.a;
-
-            return this;
-        }
-
-        sqr(): ComplexNumber {
-            const a = this.a;
-            const b = this.b;
-
-            this.a = a * a - b * b;
-            this.b = a * b + b * a;
-
-            return this;
-        }
-
-        /**
-         * Just hypotenuse, but without `sqrt` for optimize calculations
-         */
-        mod(): number {
-            return this.a * this.a + this.b * this.b;
-        }
-    }
-
     interface Axis {
         /* Distance from `min` to `max` */
         axlen: number;
@@ -104,25 +56,53 @@
 
         ctx: CanvasRenderingContext2D;
 
-        loopEachPixel(onPixel: (x: number, y: number) => string | null) {
+        worker: Worker;
+
+        queue: Array<number>;
+
+        draw() {
+            this.worker.postMessage({
+                cwidth: this.canvas.width,
+                xRatio: this.axis.xRatio,
+                xMin: this.axis.xMin,
+                aspectRatio: this.axis.aspectRatio,
+                yRatio: this.axis.yRatio,
+                yMin: this.axis.yMin,
+                setup: true
+            });
+
             this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-            for (let y = 0; y < this.canvas.height; y++) {
-                for (let x = 0; x < this.canvas.width; x++) {
-                    let newX = x * this.axis.xRatio + this.axis.xMin;
-                    newX *= this.axis.aspectRatio;
+            for (let y = 0; y < this.canvas.height; y += 200) {
+                this.queue.push(y);
+            }
+            this.worker.postMessage({
+                y: this.queue.shift()
+            });
+            this.worker.onmessage = (e) => {
+                const { yArray, delta } = e.data;
 
-                    let newY = y * this.axis.yRatio + this.axis.yMin;
-                    newY *= -1;
+                if (this.queue.length > 0) {
+                    this.worker.postMessage({
+                        y: this.queue.shift()
+                    });
+                } else {
+                    this.canvas.style.opacity = '1';
+                    this.canvas.style.pointerEvents = 'unset';
+                    document.body.style.cursor = 'unset';
+                }
 
-                    const color = onPixel(newX, newY);
+                for (let i = 0; i < yArray.length; i++) {
+                    for (let x = 0; x < this.canvas.width; x++) {
+                        const color = yArray[i][x];
 
-                    if (color !== null) {
-                        this.ctx.fillStyle = color;
-                        this.ctx.fillRect(x, y, 1, 1);
+                        if (color !== null) {
+                            this.ctx.fillStyle = color;
+                            this.ctx.fillRect(x, i + delta, 1, 1);
+                        }
                     }
                 }
-            }
+            };
         }
 
         constructor(canvas: HTMLCanvasElement | null) {
@@ -137,12 +117,19 @@
             }
 
             this.axis = new CanvasAxis(canvas);
+
+            this.worker = new Worker('build/worker.js');
+
+            this.queue = [];
         }
     }
 
     class MandelbrotSet extends CanvasBase {
         /* Make arrow function to save `this` */
         onClick = (e: MouseEvent): void => {
+            this.canvas.style.opacity = '0.5';
+            this.canvas.style.pointerEvents = 'none';
+            document.body.style.cursor = 'progress';
             const x = Math.floor(e.clientX - (window.innerWidth - this.canvas.clientWidth) / 2);
             const y = Math.floor(e.clientY - (window.innerHeight - this.canvas.clientHeight) / 2);
 
@@ -156,30 +143,6 @@
             this.axis.update();
             this.draw();
         };
-        getPixelColor(x: number, y: number): string | null {
-            let z = new ComplexNumber(0, 0);
-            let c = new ComplexNumber(x, y);
-            let i = 0;
-
-            do {
-                z.sqr().add(c);
-
-                if (z.mod() > 4) {
-                    break;
-                }
-
-                i++;
-            } while (i < 1000);
-
-            if (i === 1000) {
-                return '#00ff00';
-            } else {
-                return null;
-            }
-        }
-        draw(): void {
-            this.loopEachPixel(this.getPixelColor);
-        }
 
         constructor(canvas: HTMLCanvasElement | null) {
             super(canvas);
